@@ -39,7 +39,7 @@ class BlockUtils(object):
 
     # yucky code duplicatio here and above
     def addForkToChain(chain, newBlock):
-        foundBlock = BlockUtils.findBlock(chain, newBlock):
+        foundBlock = BlockUtils.findBlock(chain, newBlock)
         secondary = chain.secondary.copy
             
         if foundBlock == None:
@@ -92,15 +92,12 @@ class BlockUtils(object):
     ## VALIDATION CODE
     ############################
     # returns bool, and the genisis block
-    def hasGenisis(block, maxDepth):
+    def hasGenisis(block):
         visited = set()
-        cnt = 0
-        while(block.prev != None and cnt < maxDepth):
+        while(block.prev != None):
             if block in visited: return False
             visited.add(block)
             block = block.prev
-            cnt = cnt + 1
-            if cnt >= maxDepth: return False
         return block.height == 1, block
 
     def haveSameGenisis(blocks):
@@ -112,12 +109,20 @@ class BlockUtils(object):
             if b == False or curGen.uid != oldGen.uid: return False
         return True
 
+    
+
     def isValidChain(chain):
+        if chain.top < sum(map(lambda block: block.height, chain.secondary)):
+            return False
+        blocks = list(chain.top)
+        blocks.extend(chain.secondary)
+        return haveSameGenisis(blocks)
         ''' 1. no cycles
             2. all blocks have correct height
             3. all blocks connect to genisis
             4. all blocks connect to the same genisis block
             5. all blocks have unique uid (maybe?)
+            6. top is in fact the tallest (or equal)
         '''
         pass
     

@@ -3,11 +3,12 @@ from block_utils import BlockUtils as BU
 import datetime
 from collections import namedtuple
 
+# Yo! I just realized I can't make blocks chains that loop :)
 class TestBlock(unittest.TestCase):
 
-    def setup(self):
-        simpleBlock = BU.Block(None, None, 1, hash("a"))
-        
+    def setUp(self):
+        fGen = BU.Block("me", None, 2, hash(1))
+        self.fakeGenisis = BU.Block("me", BU.Block("me", fGen, 2, hash(2)), 3, hash(3))        
 
     def testBlockTuple(self):
         time = hash(datetime.datetime.now())
@@ -45,9 +46,17 @@ class TestBlock(unittest.TestCase):
         self.assertEqual(len(fChain.secondary), 3)
         #no dangling
         for block in fChain.secondary:
-            b, gen = BU.hasGenisis(block, 50)
+            b, gen = BU.hasGenisis(block)
             self.assertEqual(b, True)
 
+    def testHasGenisis(self):
+        b, gen = BU.hasGenisis(self.fakeGenisis)
+        self.assertEqual(b, False)
+        b, gen = BU.hasGenisis(BU.genisisBlock("me", 1))
+        self.assertEqual(b, True)
+        b, gen = BU.hasGenisis(BU.generateDummyChain(10).top)
+        self.assertEqual(b, True)
 
+        
 if __name__ == '__main__':
     unittest.main()
