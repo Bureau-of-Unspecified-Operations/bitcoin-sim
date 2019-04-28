@@ -1,21 +1,50 @@
 from collections import namedtuple
+from datetime import datetime
+from functools import reduce
 
 class BlockUtils(object):
 
-    def genisisBlock(name, time):
-        return BlockUtils.Block(name, None, 1, hash(time))
+    # miner -> is name passed by init
+    # prev -> last block in the chain
+    # height -> height of this block in the chain
+    # id -> hash of time when block was mined
+    Block = namedtuple("Block", ["miner", "prev", "height", "uid"])
 
-    # assert: len(names) = len(times) = height
-    def generateChain(names, times):
-        top = BlockUtils.Block(names[0], None, 1, hash(times[0]))
-        for i in range(1, len(names)):
-            top = BlockUtils.Block(names[i], top, i + 1, hash(times[i]))
-        return BlockUtils.Chain(top, [])
+    # top -> tallest block in the chain
+    # seconday -> list of all tops of forks
+    Chain = namedtuple("Chain", ["top", "orphans"])
 
-    def generateDummyChain(height):
-        return BlockUtils.generateChain([x for x in range(0, height)], [x for x in range(0, height)])
+    Peer = namedtuple("Peer", ["ip", "port", "name"])
 
+    # DEF OF GEN BLOCK (no test)
+    def genisisBlock():
+        return BlockUtils.Block("GENISIS", None, 1, -1)
 
+    # generate a block of hight = height, by miner = name
+    def generateBlock(name, height):
+        if height < 1: return None
+        if height == 1:
+            return BlockUtils.genisisBlock()
+        else:
+            return BlockUtils.Block(name, BlockUtils.generateBlock(name, height - 1),
+                                    height, hash(datetime.now()))
+    def generateChain(name, height):
+        top = BlockUtils.generateBlock(name, height)
+        return None if top == None else BlockUtils.Chain(top, [])
+
+    # requires: cnt >= 1
+    def growBlock(start, name, cnt):
+        prevBlock = start
+        curBlock = start
+        while(cnt >= 1):
+            curBlock = BlockUtils.Block(name, prevBlock, prevBlock.height + 1,
+                                        hash(datetime.now()))
+            prevBlock = curBlock
+            cnt = cnt - 1
+        return curBlock
+    
+
+    
     # grows a fork onto existing chain from start block, using names and times
     def growForkOnChain(chain, start, names, times):
         top = start
@@ -24,54 +53,92 @@ class BlockUtils(object):
             top = BlockUtils.Block(names[i], top, height, hash(times[i]))
             height = height + 1
             
-        secondary = chain.secondary.copy()
-        if start in secondary:
-            secondary.remove(start)
+        orphans = chain.orphans.copy()
+        if start in orphans:
+            orphans.remove(start)
              
         if top.height > chain.top.height:
-            secondary.append(chain.top)
+            orphans.append(chain.top)
             newTop = top
         else:
-            secondary.append(top)
+            orphans.append(top)
             newTop = chain.top
 
-        return BlockUtils.Chain(newTop, secondary)
+        return BlockUtils.Chain(newTop, orphans)
 
     # yucky code duplicatio here and above
-    def addForkToChain(chain, newBlock):
-        foundBlock = BlockUtils.findBlock(chain, newBlock)
-        secondary = chain.secondary.copy
+    # BROKEN
+    '''def addForkToChain(chain, newBlock):
+        foundBlock = BlockUtils.findBlockOnChain(chain, newBlock)
+        orphans = chain.orphans.copy
             
         if foundBlock == None:
             print("newBlock is an orphan")
             return chain
         else:
-            if foundBlock in secondary:
-                secondary.remove(foundBlock)
+            if foundBlock in orphans:
+                orphans.remove(foundBlock)
                 
             if newBlock.height > chain.top.height:
-                secondary.append(chain.top)
+                orphans.append(chain.top)
                 newTop = newBlock
             else:
-                secondary.append(newBlock)
+                orphans.append(newBlock)
                 newTop = chain.top
-        return BlockUtils.Chain(newTop, secondary)
+        return BlockUtils.Chain(newTop, orphans)
+    '''
+    # type: Chain * Block -> Chain
+    # requires: valid chain
+    # ensures: ->chain is valid
+    #         if the new forkTop has a previous orphan as it's ancestor, remove from orphan list
+    def addForkToChain(chain, forkTop):
+        if not BlockUtils.isValidBlock(forkTop):
+            print("invalid forkTop")
+            return chain
 
+        newOrphans = chain.orphans.copy()
+        newTop = chain.top
+        for top in chain.orphans:
+            if BlockUtils.isAncestorOf(top, forkTop):
+                newOrphans.remove(top)
+        if forkTop.height > chain.top.height:
+            newTop = forkTop
+            if not BlockUtils.isAncestorOf(chain.top, forkTop): newOrphans.append(chain.top)
+        else:
+            newOrphans.append(forkTop)
+        return BlockUtils.Chain(newTop, newOrphans)
 
-    # yeah recursion!
+    # requires: isValidChain(chain) == true
     def addNewBlocks(chain, blocks):
         if len(blocks) == 0: return chain
         else:
             block = blocks.pop(0)
             return BlockUtils.addNewBLocks(BlockUtils.addForkToChain(chain, block), blocks)
         
+    # NEEDED
+    # Type: Chain * str -> Chain
+    def mineNewBlock(chain, name):
+        return BlockUtils.addForkToChain(chain, BlockUtils.Block(name, chain.top,
+                                                                 chain.top.height + 1,
+                                                                 hash(datetime.now()))
+                                         )
 
-    def mineNewBlock(chain, name, time):
-        return BlockUtils.addForkToChain(chain, chain.top, [name], [time])
+    # checks if the trg block exists along the src's history
+    # TESTED
+    def isAncestorOf(trg, src):
+        # check for genisis block
+        if trg.uid == -1:
+            return True
+        curBlock = src
+        while(curBlock.prev != None):
+            if curBlock.uid == trg.uid:
+                return True
+            curBlock = curBlock.prev
+        return False
 
     # runs a BFS search for the trg block, starting at all top/secondaries of the chain
     # return None if trg not in chain
-    def findBlock(chain, trg):
+    def findBlockOnChain(chain, trg):
         queue = chain.seconday.copy()
         queue.append(chain.top)
         visited = set()
@@ -91,59 +158,45 @@ class BlockUtils(object):
     ############################
     ## VALIDATION CODE
     ############################
-    # returns bool, and the genisis block
+
     def hasGenisis(block):
         visited = set()
         while(block.prev != None):
-            if block in visited: return False
-            visited.add(block)
+            if block.uid in visited: return False
+            visited.add(block.uid)
             block = block.prev
-        return block.height == 1, block
+        return block.miner == "GENISIS" and block.height == 1 and block.uid == -1
 
-    def haveSameGenisis(blocks):
-        b, oldGen = BlockUtils.hasGenisis(blocks.pop(0))
-        if b == False: return False
+    def hasValidHeights(block):
+        cur = block
+        visited = set()
+        while(cur.prev != None):
+            if cur.uid in visited: return False
+            visited.add(cur.uid)
+            if cur.prev.height != cur.height - 1 or cur.height < 2:
+                return False
+            cur = cur.prev
+        return cur.height == 1
+
+    def isValidBlock(block):
+        return BlockUtils.hasGenisis(block) and BlockUtils.hasValidHeights(block)
         
-        while(len(blocks) > 0):
-            b, curGen = BlockUtils.hasGenisis(blocks.pop(0))
-            if b == False or curGen.uid != oldGen.uid: return False
-        return True
-
-    
 
     def isValidChain(chain):
-        if chain.top < sum(map(lambda block: block.height, chain.secondary)):
+        if chain.top.height < sum(map(lambda block: block.height, chain.orphans)):
             return False
-        blocks = list(chain.top)
-        blocks.extend(chain.secondary)
-        return haveSameGenisis(blocks)
-        ''' 1. no cycles
+        blocks = chain.orphans.copy()
+        blocks.append(chain.top)
+        return reduce(lambda b1,b2: b1 and b2 ,
+                      map(lambda block: BlockUtils.isValidBlock(block), blocks),
+                      True)
+        ''' 1. no cycles (checked by hasGen)
             2. all blocks have correct height
-            3. all blocks connect to genisis
-            4. all blocks connect to the same genisis block
-            5. all blocks have unique uid (maybe?)
+            3. all blocks connect to genisis (checked by hasGen())
+            4. all blocks connect to the same genisis block (only one Gen)
+            5. all blocks have unique uid 
             6. top is in fact the tallest (or equal)
         '''
         pass
-    
-    '''def printChain(chain):
-        gen = chain.top
-        while(gen.prev != None):
-            gen = gen.prev
-        '''
+ 
 
-    
-    
-
-    # miner -> is name passed by init
-    # prev -> last block in the chain
-    # height -> height of this block in the chain
-    # id -> hash of time when block was mined
-    Block = namedtuple("Block", ["miner", "prev", "height", "uid"])
-
-    # top -> tallest block in the chain
-    # seconday -> list of all tops of forks
-    Chain = namedtuple("Chain", ["top", "secondary"])
-
-    
-    Peer = namedtuple("Peer", ["ip", "port", "name"])

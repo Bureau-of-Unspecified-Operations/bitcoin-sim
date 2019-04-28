@@ -7,55 +7,90 @@ from collections import namedtuple
 class TestBlock(unittest.TestCase):
 
     def setUp(self):
-        fGen = BU.Block("me", None, 2, hash(1))
-        self.fakeGenisis = BU.Block("me", BU.Block("me", fGen, 2, hash(2)), 3, hash(3))        
+        pass
+
 
     def testBlockTuple(self):
         time = hash(datetime.datetime.now())
         block = BU.Block("name", None, 1, time)
         self.assertEqual(block.miner, "name")
 
-    def testGenerate(self):
-        chain = BU.generateChain(["a"] * 5, [x for x in range(1,6)])
-        block = chain.top
-        cnt = 5
-        while(block.prev != None):
-            self.assertEqual(block.height, cnt)
-            self.assertEqual(block.uid, hash(cnt))
-            cnt = cnt - 1
-            block = block.prev
 
-    def testAddFork(self):
+    def testGenerateBlock(self):
+        self.assertEqual(BU.generateBlock("me", 6).height, 6)
+        self.assertEqual(BU.generateBlock("me", 0), None)
+        self.assertEqual(BU.generateBlock("me",1), BU.genisisBlock())
+        self.assertEqual(BU.isValidBlock(BU.generateBlock("me", 50)), True)
+
+    def testGenerateChain(self):
+        self.assertEqual(BU.isValidChain(BU.generateChain("me", 34)), True)
+        self.assertEqual(BU.generateChain("me", -5), None)
+
+    def testGrowBlock(self):
+        base = BU.generateBlock("me", 15)
+        self.assertEqual(base.height, 15)
+        top = BU.growBlock(base, "he", 23)
+        self.assertEqual(top.height, 15 + 23)
+        self.assertEqual(BU.isValidBlock(top), True)
+        self.assertEqual(BU.growBlock(base, "he", 0).uid, base.uid)
+
+    '''def testGrowFork(self):
         chain = BU.generateDummyChain(5)
         start = chain.top.prev.prev
         genisis = start.prev.prev
         fChain = BU.growForkOnChain(chain, start, ["a"] * 3, ["a"] * 3)
         nub = fChain.top.prev.prev
         self.assertEqual(fChain.top.height, 6)
-        self.assertEqual(len(fChain.secondary), 1)
-        self.assertEqual(fChain.secondary[0].height, 5)
+        self.assertEqual(len(fChain.orphans), 1)
+        self.assertEqual(fChain.orphans[0].height, 5)
         fChain = BU.growForkOnChain(fChain, nub, ["a"], ["a"])
         self.assertEqual(fChain.top.height, 6)
-        self.assertEqual(len(fChain.secondary), 2)
+        self.assertEqual(len(fChain.orphans), 2)
         fChain = BU.growForkOnChain(fChain, genisis, ["A"] * 8, ["A"] * 8)
         self.assertEqual(fChain.top.height, 9)
-        self.assertEqual(len(fChain.secondary), 3)
+        self.assertEqual(len(fChain.orphans), 3)
         fChain = BU.growForkOnChain(fChain, chain.top, ["A"] * 5, ['A'] * 5)
         self.assertEqual(fChain.top.height, 10)
         # check deletes secondaries tht have been added to
-        self.assertEqual(len(fChain.secondary), 3)
+        self.assertEqual(len(fChain.orphans), 3)
         #no dangling
-        for block in fChain.secondary:
-            b, gen = BU.hasGenisis(block)
+        for block in fChain.orphans:
+            b = BU.hasGenisis(block)
             self.assertEqual(b, True)
+    '''
 
     def testHasGenisis(self):
-        b, gen = BU.hasGenisis(self.fakeGenisis)
-        self.assertEqual(b, False)
-        b, gen = BU.hasGenisis(BU.genisisBlock("me", 1))
-        self.assertEqual(b, True)
-        b, gen = BU.hasGenisis(BU.generateDummyChain(10).top)
-        self.assertEqual(b, True)
+        pass
+    
+    def testIsAncestor(self):
+        b10 = BU.generateBlock("b10", 10)
+        foreign = BU.generateBlock("foreign", 5)
+        cur = foreign
+        while(cur.prev != None):
+            self.assertEqual(BU.isAncestorOf(cur, b10), False)
+            cur = cur.prev
+        cur = b10
+        while(cur.prev != None):
+            self.assertEqual(BU.isAncestorOf(cur, b10), True)
+            cur = cur.prev
+        self.assertEqual(BU.isAncestorOf(BU.genisisBlock(), b10), True)
+
+    def testMineNewBlock(self):
+        chain = BU.generateChain("me", 5)
+        newChain = BU.mineNewBlock(chain, "me")
+        self.assertEqual(BU.isValidChain(newChain), True)
+        self.assertEqual(len(newChain.orphans), 0)
+
+    def testAddForkToChain(self):
+        chain = BU.generateChain("me", 5)
+        b3 = chain.top.prev.prev
+        fork = BU.growBlock(b3, "me", 3)
+        fChain = BU.addForkToChain(chain, fork)
+        self.assertEqual(fChain.top.height, 6)
+        self.assertEqual(BU.isValidChain(fChain), True)
+        self.assertEqual(len(fChain.orphans), 1)
+        fChain = BU.addForkToChain(fChain, BU.growBlock(fChain.orphans[0], "me", 2))
+        
 
         
 if __name__ == '__main__':
