@@ -1,6 +1,7 @@
 from collections import namedtuple
 from datetime import datetime
 from functools import reduce
+import json
 
 class BlockUtils(object):
 
@@ -13,8 +14,6 @@ class BlockUtils(object):
     # top -> tallest block in the chain
     # seconday -> list of all tops of forks
     Chain = namedtuple("Chain", ["top", "orphans"])
-
-    Peer = namedtuple("Peer", ["ip", "port", "name"])
 
     # DEF OF GEN BLOCK (no test)
     def genisisBlock():
@@ -42,51 +41,7 @@ class BlockUtils(object):
             prevBlock = curBlock
             cnt = cnt - 1
         return curBlock
-    
 
-    
-    # grows a fork onto existing chain from start block, using names and times
-    def growForkOnChain(chain, start, names, times):
-        top = start
-        height = top.height + 1
-        for i in range(len(names)):
-            top = BlockUtils.Block(names[i], top, height, hash(times[i]))
-            height = height + 1
-            
-        orphans = chain.orphans.copy()
-        if start in orphans:
-            orphans.remove(start)
-             
-        if top.height > chain.top.height:
-            orphans.append(chain.top)
-            newTop = top
-        else:
-            orphans.append(top)
-            newTop = chain.top
-
-        return BlockUtils.Chain(newTop, orphans)
-
-    # yucky code duplicatio here and above
-    # BROKEN
-    '''def addForkToChain(chain, newBlock):
-        foundBlock = BlockUtils.findBlockOnChain(chain, newBlock)
-        orphans = chain.orphans.copy
-            
-        if foundBlock == None:
-            print("newBlock is an orphan")
-            return chain
-        else:
-            if foundBlock in orphans:
-                orphans.remove(foundBlock)
-                
-            if newBlock.height > chain.top.height:
-                orphans.append(chain.top)
-                newTop = newBlock
-            else:
-                orphans.append(newBlock)
-                newTop = chain.top
-        return BlockUtils.Chain(newTop, orphans)
-    '''
     # type: Chain * Block -> Chain
     # requires: valid chain
     # ensures: ->chain is valid
@@ -118,6 +73,8 @@ class BlockUtils(object):
     # NEEDED
     # Type: Chain * str -> Chain
     def mineNewBlock(chain, name):
+        print("mining new")
+        
         return BlockUtils.addForkToChain(chain, BlockUtils.Block(name, chain.top,
                                                                  chain.top.height + 1,
                                                                  hash(datetime.now()))
@@ -153,6 +110,35 @@ class BlockUtils(object):
             queue.append(block.prev)
             
         return None
+
+    ###########################
+    # TRANSMITTING BLOCKS
+    ###########################
+
+    def blockToDict(block):
+        if block.height == 1:
+            return block._asdict()
+        else:
+            prev = BlockUtils.blockToDict(block.prev)
+            newDict = block._asdict()
+            newDict["prev"] = prev
+            return newDict
+
+    def blockToJson(block):
+        return json.dumps(BlockUtils.blockToDict(block))
+
+    def dictToBlock(d):
+        if d["prev"] == None:
+            return BlockUtils.genisisBlock()
+        else:
+            prev = BlockUtils.dictToBlock(d["prev"])
+            newBlock = BlockUtils.Block(d["miner"], prev, d["height"], d["uid"])
+            return newBlock
+
+
+    def jsonToBlock(data):
+        return BlockUtils.dictToBlock(json.loads(data))
+        
 
 
     ############################

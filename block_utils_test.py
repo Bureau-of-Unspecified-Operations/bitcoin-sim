@@ -90,6 +90,29 @@ class TestBlock(unittest.TestCase):
         self.assertEqual(BU.isValidChain(fChain), True)
         self.assertEqual(len(fChain.orphans), 1)
         fChain = BU.addForkToChain(fChain, BU.growBlock(fChain.orphans[0], "me", 2))
+        self.assertEqual(BU.isValidChain(fChain), True)
+        self.assertEqual(len(fChain.orphans), 1)
+
+        
+    def testBlockToFromData(self):
+        block = BU.genisisBlock()
+        nBlock = BU.jsonToBlock(BU.blockToJson(block))
+        self.assertEqual(nBlock.miner, block.miner)
+        self.assertEqual(nBlock.prev, block.prev)
+        self.assertEqual(nBlock.height, block.height)
+        self.assertEqual(nBlock.uid, block.uid)
+
+        block = BU.generateBlock("me", 5)
+        nBlock = BU.jsonToBlock(BU.blockToJson(block))
+        self.assertEqual(nBlock.miner, block.miner)
+        self.assertEqual(nBlock.prev, block.prev)
+        self.assertEqual(nBlock.height, block.height)
+        self.assertEqual(nBlock.uid, block.uid)
+
+    def testBlockToDict(self):
+        block = BU.generateBlock("me", 3)
+        d = BU.blockToDict(block)
+        self.assertEqual(d["height"], 3)
         
 
         
